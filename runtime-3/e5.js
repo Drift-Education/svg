@@ -1,0 +1,1 @@
+importScripts(new URL('a1.js',new URL('../runtime-3/',self['location']['href']))['href']);const {SherpaServiceWorker}=$sherpaLoadWorker(),sherpa=new SherpaServiceWorker();addEventListener('fetch',a=>{a['respondWith'](((async()=>{await sherpa['loadConfig']();if(sherpa['route'](a))return sherpa['fetch'](a);return fetch(a['request']);})()));});

@@ -1,0 +1,4 @@
+Sherpa runtime artifacts from https://github.com/bitball41/sherpa
+Commit: caaf5dbf0f961f11e156d467f74fba5058118be7
+Artifacts: dist/sherpa.all.js, dist/sherpa.client.js, dist/sherpa.sync.js, dist/sherpa.wasm.wasm
+License: AGPL-3.0-only (see LICENSE)

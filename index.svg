@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><foreignObject width="100%" height="100%"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%20128%22%20width%3D%22128%22%20height%3D%22128%22%20role%3D%22img%22%20aria-label%3D%22Drift%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2228%22%20fill%3D%22%231f2736%22%20%2F%3E%3Cg%20transform%3D%22translate(17%2013)%20scale(0.8)%22%20fill%3D%22none%22%20stroke%3D%22%23aac7ff%22%20stroke-width%3D%2214%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M16%2044%20C%2032%2032%2C%2048%2032%2C%2064%2044%20S%2092%2056%2C%20102%2044%22%20%2F%3E%3Cpath%20d%3D%22M16%2084%20C%2032%2072%2C%2048%2072%2C%2064%2084%20S%2092%2096%2C%20102%2084%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"/><link rel="stylesheet" href="./assets/index-CwsLEJBh.css"/><title>Drift</title><script><![CDATA[(function(){
+  var ns="http://www.w3.org/1999/xhtml",svg=document.documentElement;
+  var root=document.querySelector("foreignObject").firstElementChild;
+  var create=document.createElement.bind(document),createNS=document.createElementNS.bind(document);
+  var originalGetById=document.getElementById.bind(document);
+  Object.defineProperty(document,"head",{get:function(){return root.querySelector("head")},configurable:true});
+  Object.defineProperty(document,"body",{get:function(){return root.querySelector("body")},configurable:true});
+  Object.defineProperty(document,"documentElement",{get:function(){return root},configurable:true});
+  document.createElement=function(name,options){return typeof name==="string"?createNS(ns,name,options):create(name)};
+  document.createElementNS=function(uri,name,options){return createNS(!uri||uri===ns?ns:uri,name,options)};
+  Object.defineProperty(document,"getElementById",{value:function(id){return root.querySelector('[id="'+String(id).replace(/["\\]/g,'\\$&')+'"]')||originalGetById(id)},configurable:true,writable:true});
+  document.getElementsByTagName=function(name){return root.getElementsByTagNameNS(ns,name)};
+  document.getElementsByTagNameNS=function(uri,name){return root.getElementsByTagNameNS(uri,name)};
+  document.getElementsByClassName=function(name){return root.getElementsByClassName(name)};
+  var query=document.querySelector.bind(document),queryAll=document.querySelectorAll.bind(document);
+  document.querySelector=function(selector){try{return root.querySelector(selector)||query(selector)}catch(error){return query(selector)}};
+  document.querySelectorAll=function(selector){try{var found=root.querySelectorAll(selector);return found.length?found:queryAll(selector)}catch(error){return queryAll(selector)}};
+  var mirrored=/^(data-|class$|style$)/;
+  function mirror(){var seen={};for(var i=0;i<root.attributes.length;i++){var a=root.attributes[i];if(mirrored.test(a.name)){seen[a.name]=1;svg.setAttribute(a.name,a.value)}}for(var j=svg.attributes.length-1;j>=0;j--){var n=svg.attributes[j].name;if(mirrored.test(n)&&!seen[n])svg.removeAttribute(n)}}
+  mirror();new MutationObserver(mirror).observe(root,{attributes:true});
+})();]]></script><script src="runtime/a91f2c.js"></script><script src="runtime/c4e81b.js"></script></head><body><div id="root"></div><script src="./assets/index-BBPb6pnr.js"></script></body></html></foreignObject></svg>
