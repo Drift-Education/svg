@@ -18,4 +18,4 @@
   var mirrored=/^(data-|class$|style$)/;
   function mirror(){var seen={};for(var i=0;i<root.attributes.length;i++){var a=root.attributes[i];if(mirrored.test(a.name)){seen[a.name]=1;svg.setAttribute(a.name,a.value)}}for(var j=svg.attributes.length-1;j>=0;j--){var n=svg.attributes[j].name;if(mirrored.test(n)&&!seen[n])svg.removeAttribute(n)}}
   mirror();new MutationObserver(mirror).observe(root,{attributes:true});
-})();]]></script><script src="runtime/a91f2c.js"></script><script src="runtime/c4e81b.js"></script></head><body><div id="root"></div><script src="./assets/index-C-ddY9PQ.js"></script></body></html></foreignObject></svg>
+})();]]></script><script src="runtime/a91f2c.js"></script><script src="runtime/c4e81b.js"></script></head><body><div id="root"></div><script src="./assets/index-CkS_Ipty.js"></script></body></html></foreignObject></svg>
