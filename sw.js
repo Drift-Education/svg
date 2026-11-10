@@ -184,6 +184,205 @@ function blockedResponse(targetUrl, keyword) {
   });
 }
 
+// Offline app shell. An installed Drift opens with no network: the shell
+// document is answered from this cache, its hashed assets are cache-first
+// (a new build changes their names), and the proxy runtime files, which keep
+// fixed names, are refreshed from the network first. The engine's wasm and the
+// add-on XPI are left out: they are tens of megabytes and the engine keeps them
+// in its own CacheStorage.
+const SHELL_CACHE = "drift-shell-v1";
+const shellIndexUrl = new URL("index.html", appRoot).href;
+const shellRuntimePath = new URL("runtime/", appRoot).pathname;
+const shellAssetPath = new URL("assets/", appRoot).pathname;
+const shellExcludedPaths = ["firefox/", "extensions/"].map(
+  (directory) => new URL(directory, appRoot).pathname
+);
+
+/** Whether this request is the app itself rather than something Drift proxied. */
+function isShellRequest(url, request) {
+  if (shellExcludedPaths.some((path) => url.pathname.startsWith(path))) {
+    return false;
+  }
+  if (request.mode === "navigate") {
+    // Only the app document. Routed navigations were answered above, and the
+    // SVG build's index.svg is not a document this cache knows how to stand in
+    // for, so it keeps its normal network behaviour.
+    return url.pathname.endsWith("/") || /\.html?$/.test(url.pathname);
+  }
+  return url.pathname.startsWith(shellAssetPath) || url.pathname.startsWith(shellRuntimePath);
+}
+
+// Vite tags the shell's <script> and <link> with `crossorigin`, so the document's
+// own requests carry an Origin header that the install-time fetch did not. Those
+// responses are this origin's pinned files, so Vary is ignored rather than
+// letting a header difference turn a cache hit into an offline failure.
+const MATCH_OPTIONS = { ignoreVary: true };
+
+async function cacheFirst(cache, request) {
+  const cached = await cache.match(request, MATCH_OPTIONS);
+  if (cached) {
+    return cached;
+  }
+  const response = await fetch(request);
+  if (response.ok) {
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function networkFirst(cache, request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request, MATCH_OPTIONS);
+    if (cached) {
+      return cached;
+    }
+    throw error;
+  }
+}
+
+async function shellResponse(request, url) {
+  const cache = await caches.open(SHELL_CACHE);
+  if (request.mode === "navigate") {
+    try {
+      return await networkFirst(cache, request);
+    } catch (error) {
+      const shell = await cache.match(shellIndexUrl, MATCH_OPTIONS);
+      if (shell) {
+        return shell;
+      }
+      throw error;
+    }
+  }
+  return url.pathname.startsWith(shellRuntimePath)
+    ? networkFirst(cache, request)
+    : cacheFirst(cache, request);
+}
+
+/**
+ * Fetch the shell document and everything it loads, so the first launch after
+ * installing works offline. The page that triggers this install is not under
+ * the worker's control yet, so its own requests cannot be cached for it.
+ */
+async function precacheShell() {
+  const cache = await caches.open(SHELL_CACHE);
+  let response;
+  try {
+    response = await fetch(shellIndexUrl, { cache: "reload" });
+  } catch {
+    return;
+  }
+  if (!response.ok) {
+    // The SVG build has no index.html; its proxy worker still works.
+    return;
+  }
+  await cache.put(shellIndexUrl, response.clone());
+  const html = await response.text();
+  const urls = new Set();
+  for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    const value = match[1];
+    if (value === "" || value.startsWith("data:") || value.startsWith("http")) {
+      continue;
+    }
+    let absolute;
+    try {
+      absolute = new URL(value, shellIndexUrl);
+    } catch {
+      continue;
+    }
+    if (absolute.origin !== self.location.origin) {
+      continue;
+    }
+    if (shellExcludedPaths.some((path) => absolute.pathname.startsWith(path))) {
+      continue;
+    }
+    urls.add(absolute.href);
+  }
+  // Fonts and the shell's images are named by the stylesheet, not the document,
+  // so the queue follows the CSS one level down from the HTML.
+  const pending = [...urls];
+  while (pending.length > 0) {
+    const href = pending.shift();
+    const cached = await cacheFirst(cache, new Request(href)).catch(() => null);
+    if (cached === null || !href.endsWith(".css")) {
+      continue;
+    }
+    const css = await cached.text().catch(() => "");
+    for (const match of css.matchAll(/url\((?:"|')?([^"'()\\]+)(?:"|')?\)/g)) {
+      const value = match[1].trim();
+      if (value === "" || value.startsWith("data:") || value.startsWith("http")) {
+        continue;
+      }
+      let absolute;
+      try {
+        absolute = new URL(value, href);
+      } catch {
+        continue;
+      }
+      if (absolute.origin !== self.location.origin || urls.has(absolute.href)) {
+        continue;
+      }
+      if (shellExcludedPaths.some((path) => absolute.pathname.startsWith(path))) {
+        continue;
+      }
+      urls.add(absolute.href);
+      pending.push(absolute.href);
+    }
+  }
+}
+
+// Wallpapers are chosen in the page's own code, which the precache pass above
+// cannot see, so the page posts the list once it has rendered.
+addEventListener("message", (event) => {
+  const message = event.data;
+  if (!message || message.type !== "drift:cache-assets" || !Array.isArray(message.urls)) {
+    return;
+  }
+  const urls = message.urls
+    .filter((value) => typeof value === "string")
+    .map((value) => {
+      try {
+        return new URL(value, self.location.href);
+      } catch {
+        return null;
+      }
+    })
+    .filter((url) => url !== null && url.origin === self.location.origin)
+    .filter((url) => !shellExcludedPaths.some((path) => url.pathname.startsWith(path)))
+    .map((url) => url.href);
+  if (urls.length === 0) {
+    return;
+  }
+  event.waitUntil(
+    caches.open(SHELL_CACHE).then((cache) =>
+      Promise.all(urls.map((href) => cacheFirst(cache, new Request(href)).catch(() => undefined)))
+    )
+  );
+});
+
+addEventListener("install", (event) => {
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()));
+});
+
+addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith("drift-shell-") && key !== SHELL_CACHE)
+          .map((key) => caches.delete(key))
+      );
+      await self.clients.claim();
+    })()
+  );
+});
+
 // A UVServiceWorker constructs a BareClient, which looks for a bare-mux
 // SharedWorker port that a service worker can never host; bare-mux then logs
 // "failed to get a bare-mux SharedWorker MessagePort within 1s, retrying" once a
@@ -219,5 +418,15 @@ addEventListener("fetch", (event) => {
       }
     }
     event.respondWith($scramjetController.route(event));
+    return;
+  }
+  // Offline shell. `caches` is absent in the unit test's stubbed worker scope,
+  // and anything the proxy answers never reaches this branch.
+  if (typeof caches === "undefined" || event.request.method !== "GET") {
+    return;
+  }
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && isShellRequest(url, event.request)) {
+    event.respondWith(shellResponse(event.request, url));
   }
 });
