@@ -1,1 +1,0 @@
-import("./index-fbEeYSi3.js").catch(function(error){console.error("[drift] SVG app failed to load",error)});
