@@ -1,0 +1,1 @@
+import("./index-DdBdqcEU.js").catch(function(error){console.error("[drift] SVG app failed to load",error)});
