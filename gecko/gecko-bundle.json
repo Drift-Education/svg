@@ -1,0 +1,60 @@
+{
+  "format": "drift-gecko-bundle/1",
+  "createdAt": "2026-11-11T05:47:21.791Z",
+  "source": "extract",
+  "compression": "zstd",
+  "assets": {
+    "gecko.js": {
+      "file": "gecko.js",
+      "compression": "none",
+      "size": 642952,
+      "stored": 642952,
+      "sha256": "d38d5f541f05f5474dac1fe23701724c1a687fae479fbccc23fa7dc96ff88be3",
+      "sha256Raw": "d38d5f541f05f5474dac1fe23701724c1a687fae479fbccc23fa7dc96ff88be3"
+    },
+    "gecko.data": {
+      "file": "gecko.data.zst",
+      "compression": "zstd",
+      "size": 13007200,
+      "stored": 3232855,
+      "sha256": "0f78fc7d0f8e8d66418812513de2eef70aaf83fb4e85d1fdf7a4191ba4f7fd6a",
+      "sha256Raw": "63fddce947b75fd4cca3819b6d87e06e128830f18ce507d7e6e306c5dff0c9e0"
+    },
+    "gecko.wasm": {
+      "file": "gecko.wasm.zst",
+      "compression": "zstd",
+      "size": 233266250,
+      "stored": 50374792,
+      "sha256": "4d05f6c03fea6b277e50ae449317b7b2203c8fd26c85fcc46f5cd372db9cf977",
+      "sha256Raw": "074dcfe9c2bc67ed20835ad78685e0cdfc554faf7174c13a5ccce58598a33cb4"
+    },
+    "chrome-assets.tar": {
+      "file": "chrome-assets.tar.zst",
+      "compression": "zstd",
+      "size": 56251904,
+      "stored": 11047240,
+      "sha256": "e4d452771157fc98980529f35fe662602823fbf10c877585f40689106d62a317",
+      "sha256Raw": "78e9d89846042f9300f2e9b90bb63792124a33affe30e88b4aecc1716830ede3"
+    },
+    "ublock.tar": {
+      "file": "ublock.tar.zst",
+      "compression": "zstd",
+      "size": 27300864,
+      "stored": 5597327,
+      "sha256": "02f4c55b2aa7fd0346c79b565a21ba6b3ceb1d13e446b135965c31a6c787712b",
+      "sha256Raw": "0b271baf43f0ed79b89b20d2f1079bf9a761c3960b8ecda9b7b8cc84569a8895"
+    },
+    "branding.tar": {
+      "file": "branding.tar.zst",
+      "compression": "zstd",
+      "size": 623104,
+      "stored": 352788,
+      "sha256": "08e8e6557afb8750fa59d2babd00ca23545148561287929f02339785c54c407b",
+      "sha256Raw": "3e2343e9f81fa7e634dafc1e120b99c0e0fe8fcdbdef9669cdb5b04d22461f24"
+    }
+  },
+  "totals": {
+    "raw": 331092274,
+    "stored": 71247954
+  }
+}
