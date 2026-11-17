@@ -201,7 +201,69 @@ async function relay(event, client, engine) {
   return new Response(payload, { status: answer.status, headers });
 }
 
+const PLAYER_DOCUMENT = "player.html";
+const DOCUMENT_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-embedder-policy": "require-corp",
+  "cross-origin-resource-policy": "same-origin",
+  "cache-control": "no-store"
+};
+
+/**
+ * The player is a top-level document, so it needs COOP `same-origin` and COEP
+ * `require-corp` on its own response, plus an HTML content type. A plain static
+ * host sends no such headers, and a CDN mirror types `.html` as `text/plain`
+ * (jsDelivr does both). This worker owns the folder and Drift registers it
+ * before the window opens, so it answers the document itself; every other file
+ * in the folder still comes from the host.
+ */
+function servePlayerDocument(event) {
+  const request = event.request;
+  if (request.method !== "GET") {
+    return false;
+  }
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return false;
+  }
+  let document;
+  try {
+    const scope = self.registration && self.registration.scope;
+    document = new URL(PLAYER_DOCUMENT, scope || self.location.href);
+  } catch {
+    return false;
+  }
+  if (url.origin !== document.origin || url.pathname !== document.pathname) {
+    return false;
+  }
+  event.respondWith(
+    (async () => {
+      let response;
+      try {
+        // Service-worker fetches skip this handler, so this reads the host's own
+        // copy without looping. The query string carries `placeId`.
+        response = await fetch(url.href, { cache: "no-store", redirect: "follow" });
+      } catch (error) {
+        return new Response(`webblox: the player document is unavailable (${String(error)})`, {
+          status: 502,
+          headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
+        });
+      }
+      const body = await response.text();
+      return new Response(body, { status: response.status, headers: DOCUMENT_HEADERS });
+    })()
+  );
+  return true;
+}
+
 self.addEventListener("fetch", (event) => {
+  // The document is neither proxied nor bridged; it only needs the headers above.
+  if (servePlayerDocument(event)) {
+    return;
+  }
   let url;
   try {
     url = new URL(event.request.url);
