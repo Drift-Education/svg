@@ -8,11 +8,19 @@
 // COOP/COEP pair, while every other request goes to the vendored proxy worker
 // that is imported at the end of this file.
 //
+// It also answers the player document. jsDelivr types `.html` as
+// `text/plain; charset=utf-8` with `nosniff`, so a player window that opens
+// before its own worker controls `/webblox/` prints its source instead of the
+// game. Serving it here as HTML means the frame is right from the first load;
+// the player's own worker (a more specific scope) takes over with the same
+// headers once it is active.
+//
 // The first visit is still unisolated (no worker is controlling it yet), so the
 // document registers this worker and reloads itself once. See
 // `scripts/build-preview-svg.mjs`.
 
 const SHELL_DOCUMENT = /\/(?:index\.svg|index\.xml)$/;
+const PLAYER_DOCUMENT = /\/webblox\/player\.html$/;
 
 const SHELL_HEADERS = {
   "cross-origin-opener-policy": "same-origin",
@@ -20,6 +28,15 @@ const SHELL_HEADERS = {
   // without CORP, which is the same pair `public/_headers` uses for the app.
   "cross-origin-embedder-policy": "credentialless",
   "cross-origin-resource-policy": "cross-origin",
+  "cache-control": "no-store"
+};
+
+const PLAYER_HEADERS = {
+  "cross-origin-opener-policy": "same-origin",
+  // The engine runs pthreads over shared WebAssembly memory, so the player
+  // folder opts into require-corp, exactly like `public/_headers`.
+  "cross-origin-embedder-policy": "require-corp",
+  "cross-origin-resource-policy": "same-origin",
   "cache-control": "no-store"
 };
 
@@ -36,9 +53,9 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  // Navigations only: the document is the one response whose headers decide
-  // isolation. A navigation Request cannot be handed to `fetch()`, so the URL
-  // is fetched instead.
+  // Navigations only: these are the responses whose headers and content type
+  // decide isolation and whether the frame is a document at all. A navigation
+  // Request cannot be handed to `fetch()`, so the URL is fetched instead.
   if (request.method !== "GET" || request.mode !== "navigate") {
     return;
   }
@@ -48,10 +65,17 @@ self.addEventListener("fetch", (event) => {
   } catch {
     return;
   }
-  if (!SHELL_DOCUMENT.test(url.pathname)) {
+  const shell = SHELL_DOCUMENT.test(url.pathname);
+  const player = !shell && PLAYER_DOCUMENT.test(url.pathname);
+  if (!shell && !player) {
     return;
   }
-  const type = url.pathname.endsWith(".xml") ? "application/xml" : "image/svg+xml";
+  const headers = shell ? SHELL_HEADERS : PLAYER_HEADERS;
+  const type = shell
+    ? url.pathname.endsWith(".xml")
+      ? "application/xml; charset=utf-8"
+      : "image/svg+xml"
+    : "text/html; charset=utf-8";
   event.respondWith(
     (async () => {
       const upstream = await fetch(url.href, {
@@ -59,20 +83,26 @@ self.addEventListener("fetch", (event) => {
         credentials: "same-origin",
         redirect: "follow"
       });
-      const headers = new Headers(upstream.headers);
-      for (const name of Object.keys(SHELL_HEADERS)) {
-        headers.set(name, SHELL_HEADERS[name]);
+      const response = new Headers(upstream.headers);
+      // The body below is already decoded and re-wrapped, so framing headers
+      // from the CDN (brotli/gzip and the length that described it) would make
+      // the browser decode it twice.
+      for (const name of ["content-encoding", "content-length", "transfer-encoding"]) {
+        response.delete(name);
       }
-      headers.set("content-type", `${type}; charset=utf-8`);
+      for (const name of Object.keys(headers)) {
+        response.set(name, headers[name]);
+      }
+      response.set("content-type", type);
       return new Response(await upstream.arrayBuffer(), {
         status: upstream.status,
-        headers
+        headers: response
       });
     })()
   );
 });
 
 // The vendored proxy worker installs its own listeners from here. Ours was
-// registered first, so it sees each request before that one and only claims the
-// document; everything else falls through untouched.
+// registered first, so it sees each request before that one and only claims
+// these two documents; everything else falls through untouched.
 importScripts(new URL("sw-runtime.js", self.location.href).href);
