@@ -3,7 +3,8 @@ importScripts(
   new URL("runtime/e2b749.js", appRoot).href,
   new URL("runtime-2/a1.js", appRoot).href,
   new URL("runtime-2/e5.js", appRoot).href,
-  new URL("runtime-2/d4.js", appRoot).href
+  new URL("runtime-2/d4.js", appRoot).href,
+  new URL("runtime-4/controller.sw.js", appRoot).href
 );
 
 // Keyword content filter, mirrored from BLOCKED_KEYWORDS in
@@ -406,6 +407,19 @@ addEventListener("fetch", (event) => {
     }
     uv ??= new UVServiceWorker();
     event.respondWith(uv.fetch(event));
+    return;
+  }
+  const ramjetController = self.$ramjetController;
+  if (ramjetController !== undefined && ramjetController.shouldRoute(event)) {
+    if (isNavigation(event.request)) {
+      const target = decodeScramjetTarget(event.request.url);
+      const keyword = target === null ? null : blockedKeywordIn(target);
+      if (keyword !== null) {
+        event.respondWith(blockedResponse(target, keyword));
+        return;
+      }
+    }
+    event.respondWith(ramjetController.route(event));
     return;
   }
   if ($scramjetController.shouldRoute(event)) {

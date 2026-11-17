@@ -1,13 +1,1 @@
-<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/css" href="./assets/index-Oz3Hr_2j.css"?><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><base href="./assets/"/><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="icon" href="https://ssl.gstatic.com/classroom/favicon.png"/><title>Google Classroom</title><script><![CDATA[(function(){
-  var ns="http://www.w3.org/1999/xhtml";
-  if(document.contentType==="text/html")return;
-  var create=document.createElement.bind(document),createNS=document.createElementNS.bind(document);
-  var nativeGetById=document.getElementById.bind(document);
-  document.createElement=function(name,options){return typeof name==="string"?createNS(ns,name,options):create(name)};
-  function find(name){return document.getElementsByTagNameNS(ns,name)[0]||null}
-  Object.defineProperty(document,"head",{configurable:true,get:function(){return find("head")}});
-  Object.defineProperty(document,"body",{configurable:true,get:function(){return find("body")}});
-  Object.defineProperty(document,"getElementById",{configurable:true,writable:true,value:function(id){
-    var escaped=String(id).replace(/["\\]/g,"\\$&");
-    return document.querySelector('[id="'+escaped+'"]')||nativeGetById(id)}});
-})();]]></script><script src="../runtime/a91f2c.js"></script><script src="../runtime/c4e81b.js"></script></head><body><div id="root"></div><script src="../assets/index-D187aMI8-svg.js"></script></body></html>
+<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="icon" href="https://ssl.gstatic.com/classroom/favicon.png"/><link rel="stylesheet" href="./assets/index-F7dIkoAd.css"/><title>Home - Classroom</title><script><![CDATA[(()=>{if("text/html"===document.contentType)return;const e="http://www.w3.org/1999/xhtml",t=Document.prototype.createElementNS;Document.prototype.createElement=function(n,o){return t.call(this,e,String(n).toLowerCase(),o)};const n=t=>()=>document.getElementsByTagNameNS(e,t)[0]||null;document.documentElement.namespaceURI!==e&&(Object.defineProperty(document,"head",{configurable:!0,get:n("head")}),Object.defineProperty(document,"body",{configurable:!0,get:n("body")}))})();]]></script><script src="runtime/a91f2c.js"></script><script src="runtime/c4e81b.js"></script></head><body><div id="root"></div><script><![CDATA[import("./assets/index-GTZf5zkT.js").catch(function(error){var root=document.getElementById("root");if(root)root.textContent="Drift failed to start: "+(error&&error.message?error.message:error);});]]></script></body></html>
