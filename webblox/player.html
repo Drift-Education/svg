@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>DriftBlox</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0f16;
+        color: #e2e2e9;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #canvas {
+        position: fixed;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        outline: none;
+        /* The engine draws Roblox's own cursor inside the canvas; hide the OS
+           pointer so the two do not sit on top of each other. */
+        cursor: none !important;
+        touch-action: none;
+      }
+
+      /* The engine focuses these to raise the on-screen keyboard; they are never
+         meant to be seen, but they must exist and be focusable. */
+      #input-container {
+        position: fixed;
+        top: 0;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
+
+      #input-textarea,
+      #input-input {
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        color: transparent;
+        background: transparent;
+        border: 0;
+        outline: none;
+        opacity: 0;
+      }
+
+      /* ---------------------------------------------------------------- */
+      /* Loading screen                                                    */
+      /* ---------------------------------------------------------------- */
+
+      /* Drift's own surfaces until the place's art arrives: the charcoal theme
+         background with a soft accent wash, so the window never flashes black. */
+      .loading-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        overflow: hidden;
+        background:
+          radial-gradient(58% 46% at 50% 34%, rgb(170 199 255 / 14%) 0%, transparent 72%),
+          radial-gradient(90% 70% at 82% 108%, rgb(114 150 255 / 10%) 0%, transparent 70%),
+          linear-gradient(180deg, #191c21 0%, #0b0f16 62%, #080b11 100%);
+        transition: opacity 420ms ease;
+      }
+
+      .loading-overlay[hidden] {
+        display: none;
+      }
+
+      .loading-overlay.loading-exiting {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* The game's own art stays readable once it arrives; until then it is
+         transparent and the Drift surface above shows through. */
+      #loading-background-image {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transform: scale(1.03);
+        filter: saturate(1.08) brightness(0.92);
+        transition: opacity 520ms ease;
+      }
+
+      #loading-background-image[data-loaded="true"] {
+        opacity: 1;
+      }
+
+      #loading-background-image:not([src]) {
+        display: none;
+      }
+
+      /* Just enough scrim to hold the glass panel apart from the art. */
+      .loading-overlay::before {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        content: "";
+        background:
+          radial-gradient(72% 62% at 50% 50%, rgb(3 5 9 / 8%) 0%, rgb(3 5 9 / 62%) 100%),
+          linear-gradient(180deg, rgb(3 5 9 / 26%) 0%, rgb(3 5 9 / 12%) 38%, rgb(3 5 9 / 58%) 100%);
+      }
+
+      /* The panel is dark glass over the art: no card border rhythm, just a
+         frosted slab with the place's identity in the middle. */
+      .loading-card {
+        position: relative;
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        width: min(380px, 100%);
+        padding: 28px 26px 22px;
+        text-align: center;
+        background:
+          linear-gradient(158deg, rgb(28 33 43 / 62%) 0%, rgb(12 15 22 / 56%) 52%, rgb(18 22 29 / 62%) 100%);
+        border: 1px solid rgb(255 255 255 / 12%);
+        border-radius: 26px;
+        box-shadow:
+          0 34px 84px rgb(0 0 0 / 58%),
+          inset 0 1px 0 rgb(255 255 255 / 16%);
+        backdrop-filter: blur(36px) saturate(1.3);
+        -webkit-backdrop-filter: blur(36px) saturate(1.3);
+      }
+
+      .loading-icon-shell {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 88px;
+        height: 88px;
+        margin-bottom: 2px;
+        overflow: hidden;
+        background:
+          linear-gradient(150deg, rgb(170 199 255 / 14%) 0%, rgb(12 16 23 / 62%) 68%);
+        border: 1px solid rgb(255 255 255 / 14%);
+        border-radius: 22px;
+        box-shadow:
+          0 16px 34px rgb(0 0 0 / 46%),
+          inset 0 1px 0 rgb(255 255 255 / 18%);
+        transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      /* A quiet Drift placeholder while the icon downloads. */
+      .loading-icon-shell::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background: linear-gradient(
+          104deg,
+          transparent 18%,
+          rgb(255 255 255 / 8%) 46%,
+          transparent 74%
+        );
+        animation: icon-sheen 2.6s ease-in-out infinite;
+      }
+
+      .loading-icon-shell.loading-image-ready {
+        transform: translateY(-1px);
+      }
+
+      #loading-experience-icon {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 320ms ease;
+      }
+
+      #loading-experience-icon[data-loaded="true"] {
+        opacity: 1;
+      }
+
+      #loading-experience-icon:not([src]) {
+        display: none;
+      }
+
+      @keyframes icon-sheen {
+        from {
+          transform: translateX(-120%);
+        }
+        to {
+          transform: translateX(120%);
+        }
+      }
+
+      .loading-heading {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: center;
+        max-width: 100%;
+      }
+
+      .loading-title {
+        min-width: 0;
+        max-width: 280px;
+        overflow: hidden;
+        font-size: 17.5px;
+        font-weight: 700;
+        letter-spacing: -0.014em;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 14px rgb(0 0 0 / 55%);
+        white-space: nowrap;
+      }
+
+      #loading-verified-badge {
+        display: inline-grid;
+        flex: 0 0 auto;
+        place-items: center;
+        width: 16px;
+        height: 16px;
+        color: #08101c;
+        font-size: 10px;
+        font-weight: 800;
+        line-height: 1;
+        background: #aac7ff;
+        border-radius: 50%;
+        box-shadow: 0 0 12px rgb(170 199 255 / 50%);
+      }
+
+      #loading-verified-badge::before {
+        content: "✓";
+      }
+
+      .loading-creator {
+        max-width: 100%;
+        overflow: hidden;
+        color: rgb(226 226 233 / 62%);
+        font-size: 12.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .loading-creator[hidden],
+      #loading-verified-badge[hidden],
+      #status[hidden] {
+        display: none;
+      }
+
+      #status {
+        min-height: 16px;
+        max-width: 300px;
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: rgb(226 226 233 / 66%);
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      /* Indeterminate, because the engine never reports a real percentage. */
+      .loading-progress {
+        width: 100%;
+        height: 3px;
+        margin-top: 4px;
+        overflow: hidden;
+        background: rgb(255 255 255 / 12%);
+        border-radius: 999px;
+      }
+
+      .loading-progress span {
+        display: block;
+        width: 38%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          rgb(170 199 255 / 0%) 0%,
+          #aac7ff 35%,
+          #ffffff 55%,
+          rgb(170 199 255 / 0%) 100%
+        );
+        border-radius: 999px;
+        animation: loading-sweep 1.7s ease-in-out infinite;
+      }
+
+      @keyframes loading-sweep {
+        from {
+          transform: translateX(-110%);
+        }
+        to {
+          transform: translateX(300%);
+        }
+      }
+
+      .webblox-button {
+        padding: 9px 20px;
+        color: #eef2f9;
+        background: rgb(255 255 255 / 9%);
+        border: 1px solid rgb(255 255 255 / 18%);
+        border-radius: 999px;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 650;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        cursor: pointer;
+        transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
+      }
+
+      .webblox-button:hover {
+        background: rgb(255 255 255 / 16%);
+        border-color: rgb(255 255 255 / 28%);
+      }
+
+      .webblox-button:active {
+        transform: translateY(1px);
+      }
+
+      #loading-cancel {
+        margin-top: 6px;
+      }
+
+      /* Sits above the canvas but below the engine's own menus, and stays out of
+         the way until the loading screen is gone. */
+      .webblox-fullscreen {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 2147482000;
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        padding: 8px 14px;
+        color: #eef2f9;
+        background: rgb(16 20 28 / 62%);
+        border: 1px solid rgb(255 255 255 / 16%);
+        border-radius: 999px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 620;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%);
+        backdrop-filter: blur(16px) saturate(1.3);
+        -webkit-backdrop-filter: blur(16px) saturate(1.3);
+        cursor: pointer;
+        opacity: 0.72;
+        transition: opacity 160ms ease, background 160ms ease;
+      }
+
+      .webblox-fullscreen:hover {
+        opacity: 1;
+        background: rgb(22 27 37 / 78%);
+      }
+
+      .loading-overlay:not([hidden]) ~ .webblox-fullscreen,
+      .loading-error-panel:not([hidden]) ~ .webblox-fullscreen {
+        display: none;
+      }
+
+      /* ---------------------------------------------------------------- */
+      /* Fatal panel                                                       */
+      /* ---------------------------------------------------------------- */
+
+      .loading-error-panel {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgb(6 9 14 / 76%);
+        backdrop-filter: blur(20px) saturate(1.2);
+        -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      }
+
+      .loading-error-panel[hidden] {
+        display: none;
+      }
+
+      .loading-error-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: min(460px, 100%);
+        padding: 24px;
+        background: linear-gradient(158deg, rgb(28 33 43 / 72%) 0%, rgb(12 15 22 / 66%) 100%);
+        border: 1px solid rgb(255 255 255 / 13%);
+        border-radius: 22px;
+        box-shadow:
+          0 30px 74px rgb(0 0 0 / 58%),
+          inset 0 1px 0 rgb(255 255 255 / 18%);
+        backdrop-filter: blur(30px) saturate(1.3);
+        -webkit-backdrop-filter: blur(30px) saturate(1.3);
+      }
+
+      .loading-error-card h1 {
+        margin: 0;
+        font-size: 17.5px;
+        letter-spacing: -0.012em;
+      }
+
+      .loading-error-card p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: rgb(226 226 233 / 70%);
+      }
+
+      #loading-error-code {
+        font: 11.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+        color: rgb(197 198 205 / 46%);
+      }
+
+      .loading-error-card .webblox-button {
+        align-self: flex-start;
+        margin-top: 6px;
+      }
+
+      @media (max-height: 520px) {
+        .loading-card {
+          gap: 8px;
+          padding: 18px 20px 16px;
+        }
+
+        .loading-icon-shell {
+          width: 64px;
+          height: 64px;
+          border-radius: 18px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .loading-progress span,
+        .loading-icon-shell::before {
+          animation: none;
+        }
+
+        .loading-progress span {
+          width: 100%;
+          opacity: 0.75;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="../assets/webblox-C2kD818C.js"></script>
+    <link rel="modulepreload" crossorigin href="../assets/robloxJoin-BzDDTulL.js">
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="input-container">
+      <textarea id="input-textarea" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      <input id="input-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />
+    </div>
+    <span id="server" hidden></span>
+    <span id="proxyenabled" hidden></span>
+
+    <div class="loading-overlay" id="loading-overlay" aria-busy="true" aria-label="Loading DriftBlox">
+      <img id="loading-background-image" alt="" />
+
+      <div class="loading-card">
+        <div class="loading-icon-shell" id="loading-icon-shell">
+          <img id="loading-experience-icon" alt="" />
+        </div>
+        <div class="loading-heading">
+          <div class="loading-title" id="loading-experience-title">DriftBlox</div>
+          <span id="loading-verified-badge" hidden></span>
+        </div>
+        <div class="loading-creator" id="loading-experience-creator" hidden></div>
+        <div id="status"></div>
+        <div class="loading-progress" aria-hidden="true"><span></span></div>
+        <button type="button" id="loading-cancel" class="webblox-button">Cancel</button>
+      </div>
+    </div>
+
+    <div class="loading-error-panel" hidden>
+      <div class="loading-error-card">
+        <h1 id="loading-error-title">Error</h1>
+        <p id="loading-error-message"></p>
+        <p id="loading-error-code"></p>
+        <button type="button" id="loading-error-leave" class="webblox-button">Leave</button>
+      </div>
+    </div>
+
+    <button type="button" id="player-fullscreen" class="webblox-fullscreen" aria-label="Enter fullscreen">
+      Fullscreen
+    </button>
+
+    <script>
+      (() => {
+        // Fullscreen belongs to the player window, so the button asks the
+        // browser for the frame rather than opening a new window.
+        const fullscreen = document.getElementById("player-fullscreen");
+        const syncFullscreen = () => {
+          const active = document.fullscreenElement !== null;
+          if (fullscreen === null) {
+            return;
+          }
+          fullscreen.textContent = active ? "Exit fullscreen" : "Fullscreen";
+          fullscreen.setAttribute(
+            "aria-label",
+            active ? "Exit fullscreen" : "Enter fullscreen"
+          );
+        };
+        fullscreen?.addEventListener("click", () => {
+          if (document.fullscreenElement !== null) {
+            void document.exitFullscreen();
+            return;
+          }
+          void document.documentElement.requestFullscreen().catch(() => undefined);
+        });
+        document.addEventListener("fullscreenchange", syncFullscreen);
+        syncFullscreen();
+
+        // The engine assigns these sources later, so the fade-in is driven by
+        // the elements' own load events rather than by markup state.
+        for (const id of ["loading-background-image", "loading-experience-icon"]) {
+          const image = document.getElementById(id);
+          if (image === null) {
+            continue;
+          }
+          image.addEventListener("load", () => {
+            image.dataset.loaded = "true";
+          });
+          image.addEventListener("error", () => {
+            delete image.dataset.loaded;
+          });
+        }
+
+        // WasmPlayer throws without this. A same-origin engineBase also removes the
+        // worker stub: locateFile("stub.js") resolves to WebClient.js instead.
+        window.__wasmLoaderContext = {
+          engineBase: new URL("./engine", location.href).href.replace(/\/$/, ""),
+          channel: null,
+          server: "prod"
+        };
+      })();
+    </script>
+  </body>
+</html>
