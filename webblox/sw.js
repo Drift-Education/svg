@@ -173,8 +173,15 @@ async function relay(event, client, engine) {
   }
 
   const headers = new Headers(corsHeaders(origin, requested));
-  if (engine !== null && engine !== undefined && engine.type !== "") {
-    headers.set("Content-Type", engine.type);
+  if (engine !== null && engine !== undefined) {
+    // The engine loads its client inside a nested frame, and under the player's
+    // COEP every nested frame must carry a COEP header of its own. The upload's
+    // own pair is stripped above, so the matching one is set here.
+    headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+    headers.set("Cross-Origin-Opener-Policy", "same-origin");
+    if (engine.type !== "") {
+      headers.set("Content-Type", engine.type);
+    }
   }
   for (const [name, value] of answer.headers ?? []) {
     const lower = name.toLowerCase();
@@ -185,6 +192,9 @@ async function relay(event, client, engine) {
       lower === "content-encoding" ||
       lower === "content-length" ||
       lower === "transfer-encoding" ||
+      lower === "cross-origin-resource-policy" ||
+      lower === "cross-origin-embedder-policy" ||
+      lower === "cross-origin-opener-policy" ||
       (engine !== null && engine !== undefined && lower === "content-type")
     ) {
       continue;
