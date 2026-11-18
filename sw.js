@@ -15,12 +15,24 @@
 // the player's own worker (a more specific scope) takes over with the same
 // headers once it is active.
 //
+// It also answers `index.svg?build=<commit>`: that is the always-latest loader's
+// handover, and it is served from the commit's own bytes while the URL keeps the
+// branch directory the reader opened. A `<base>` element points the document's
+// relative paths at that commit, so the branch copy — the one that goes stale —
+// is never read.
+//
 // The first visit is still unisolated (no worker is controlling it yet), so the
 // document registers this worker and reloads itself once. See
 // `scripts/build-preview-svg.mjs`.
 
 const SHELL_DOCUMENT = /\/(?:index\.svg|index\.xml)$/;
 const PLAYER_DOCUMENT = /\/webblox\/player\.html$/;
+const COMMIT = /^[0-9a-f]{40}$/;
+// The loader registers `sw.js?entry=latest`, and that worker only answers
+// documents: the proxy runtime beside it lives in the branch directory, where
+// the copy is the stale one, and a proxy bound to this scope can never serve a
+// frame anyway.
+const ENTRY_ONLY = new URL(self.location.href).searchParams.has("entry");
 
 const SHELL_HEADERS = {
   "cross-origin-opener-policy": "same-origin",
@@ -51,6 +63,43 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// The loader asks before it hands over: a worker from before this handover
+// existed cannot answer, and its branch copy is the stale one.
+self.addEventListener("message", (event) => {
+  if (!event.data || event.data.drift !== "shell?") {
+    return;
+  }
+  const reply = { drift: "shell", build: true };
+  const port = event.ports?.[0];
+  if (port) {
+    port.postMessage(reply);
+  } else if (event.source) {
+    event.source.postMessage(reply);
+  }
+});
+
+// `/gh/<owner>/<repo>@<ref>/index.svg` -> the same file at `@<commit>`.
+function commitDocument(url, build) {
+  const source = new URL(url.href);
+  source.pathname = url.pathname.replace(/@[^/]*(\/[^/]*)$/, `@${build}$1`);
+  source.search = "";
+  return source;
+}
+
+// The document was fetched from a commit URL, so its relative paths have to
+// resolve there too; the page itself keeps the branch URL in the address bar.
+function withCommitBase(bytes, source) {
+  const text = new TextDecoder().decode(bytes);
+  const head = /<head(\s[^>]*)?>/i;
+  if (!head.test(text)) {
+    return bytes;
+  }
+  const base = new URL("./", source).href;
+  return new TextEncoder().encode(
+    text.replace(head, (tag) => `${tag}<base href="${base}"/>`)
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   // Navigations only: these are the responses whose headers and content type
@@ -70,6 +119,9 @@ self.addEventListener("fetch", (event) => {
   if (!shell && !player) {
     return;
   }
+  const requested = url.searchParams.get("build");
+  const build = shell && requested !== null && COMMIT.test(requested) ? requested : null;
+  const source = build ? commitDocument(url, build) : url;
   const headers = shell ? SHELL_HEADERS : PLAYER_HEADERS;
   const type = shell
     ? url.pathname.endsWith(".xml")
@@ -78,8 +130,10 @@ self.addEventListener("fetch", (event) => {
     : "text/html; charset=utf-8";
   event.respondWith(
     (async () => {
-      const upstream = await fetch(url.href, {
-        cache: "no-store",
+      const upstream = await fetch(source.href, {
+        // A commit URL never changes, so it may be reused; the branch copy is
+        // exactly what this handover exists to skip.
+        cache: build ? "force-cache" : "no-store",
         credentials: "same-origin",
         redirect: "follow"
       });
@@ -94,10 +148,11 @@ self.addEventListener("fetch", (event) => {
         response.set(name, headers[name]);
       }
       response.set("content-type", type);
-      return new Response(await upstream.arrayBuffer(), {
-        status: upstream.status,
-        headers: response
-      });
+      const bytes = await upstream.arrayBuffer();
+      return new Response(
+        build && upstream.ok ? withCommitBase(bytes, source) : bytes,
+        { status: upstream.status, headers: response }
+      );
     })()
   );
 });
@@ -105,4 +160,6 @@ self.addEventListener("fetch", (event) => {
 // The vendored proxy worker installs its own listeners from here. Ours was
 // registered first, so it sees each request before that one and only claims
 // these two documents; everything else falls through untouched.
-importScripts(new URL("sw-runtime.js", self.location.href).href);
+if (!ENTRY_ONLY) {
+  importScripts(new URL("sw-runtime.js", self.location.href).href);
+}
